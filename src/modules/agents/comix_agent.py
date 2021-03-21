@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+from utils.models import MLPBase
 
 class CEMAgent(nn.Module):
     def __init__(self, input_shape, args):
@@ -11,14 +12,32 @@ class CEMAgent(nn.Module):
         num_inputs = input_shape + args.n_actions
         hidden_size = args.rnn_hidden_dim
 
-        self.fc1 = nn.Linear(num_inputs, hidden_size)
+        if self.args.msg_pass:
+            self.fc1 = nn.Linear(num_inputs + self.args.msg_dim, hidden_size)
+            self.msg_net = MLPBase(num_inputs + self.args.msg_dim,self.args.msg_dim)
+        else:
+            self.fc1 = nn.Linear(num_inputs, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, 1)
 
     def forward(self, inputs, actions):
         if actions is not None:
             inputs = th.cat([inputs, actions.contiguous().view(-1, actions.shape[-1])], dim=-1)
-        x = F.relu(self.fc1(inputs))
+
+        if self.args.msg_pass:
+            msg_inputs = inputs.reshape(-1,self.args.n_agents,inputs.shape[-1])
+            msg_up = inputs.new(msg_inputs.shape[0],self.args.msg_dim).zero_()
+
+            for i in reversed(range(self.args.n_agents)):
+                msg_up = self.msg_net(th.cat([msg_inputs[:,i],msg_up],dim=-1))
+            msg_down = [msg_up]
+            for i in range(self.args.n_agents - 1):
+                msg_down.append(self.msg_net(th.cat([msg_inputs[:,i],msg_down[i]],dim=-1)))
+            msgs = th.stack(msg_down,dim=1).reshape(-1,self.args.msg_dim)
+            inputs_n_msg = th.cat([inputs,msgs],dim=-1)
+            x = F.relu(self.fc1(inputs_n_msg))
+        else:
+            x = F.relu(self.fc1(inputs))
         x = F.relu(self.fc2(x))
         q = self.fc3(x)
         return {"Q": q}
@@ -33,7 +52,12 @@ class NAFAgent(nn.Module):
         num_inputs = input_shape
         num_outputs = args.n_actions
 
-        self.linear1 = nn.Linear(num_inputs, hidden_size)
+        if self.args.msg_pass:
+            self.linear1 = nn.Linear(num_inputs + self.args.msg_dim, hidden_size)
+            self.msg_net = MLPBase(num_inputs + self.args.msg_dim,self.args.msg_dim)
+        else:
+            self.linear1 = nn.Linear(num_inputs, hidden_size)
+        # self.linear1 = nn.Linear(num_inputs, hidden_size)
         self.linear2 = nn.Linear(hidden_size, hidden_size)
 
         self.V = nn.Linear(hidden_size, 1)
@@ -59,7 +83,22 @@ class NAFAgent(nn.Module):
     def forward(self, inputs, actions=None):
         x, u = inputs, actions  # need to get to format bs*a, v
 
-        x = F.tanh(self.linear1(x))
+        if self.args.msg_pass:
+            msg_inputs = inputs.reshape(-1, self.args.n_agents, inputs.shape[-1])
+            msg_up = inputs.new(msg_inputs.shape[0], self.args.msg_dim).zero_()
+
+            for i in reversed(range(self.args.n_agents)):
+                msg_up = self.msg_net(th.cat([msg_inputs[:, i], msg_up], dim=-1))
+            msg_down = [msg_up]
+            for i in range(self.args.n_agents - 1):
+                msg_down.append(self.msg_net(th.cat([msg_inputs[:, i], msg_down[i]], dim=-1)))
+            msgs = th.stack(msg_down, dim=1).reshape(-1, self.args.msg_dim)
+            inputs_n_msg = th.cat([inputs, msgs], dim=-1)
+            x = F.tanh(self.linear1(inputs_n_msg))
+            # x = F.tanh(self.linear1(x))
+        else:
+            x = F.tanh(self.linear1(x))
+
         x = F.tanh(self.linear2(x))
 
         V = self.V(x)

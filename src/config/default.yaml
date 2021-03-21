@@ -65,3 +65,7 @@ plot_loss_network: False
 verbose: False
 optimizer: rmsprop
 target_update_mode: hard
+
+# --- Message Passing ---
+msg_pass: True
+msg_dim: 32
