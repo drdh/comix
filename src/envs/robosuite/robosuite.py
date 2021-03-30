@@ -28,6 +28,8 @@ class Robosuite(MultiAgentEnv):
 
         self.obs_list = self.env.reset()
         self.n_agents = self.args.num_joints # TODO: consider gripper,multi-robot
+        if self.args.has_gripper:
+            self.n_agents += 1
         self.n_actions = self.args.action_dims
         self.episode_limit = self.args.horizon
         self.action_space = [spaces.Box(low=np.array([self.env.action_spec[0][0]]), # TODO: check whether all the action belong to [-1,1]
@@ -57,23 +59,49 @@ class Robosuite(MultiAgentEnv):
         return [self.get_obs_agent(a) for a in range(self.n_agents)]
 
     def get_obs_agent(self, agent_id):# TODO: consider gripper,multi-object,multi-robot
-        return np.concatenate([self.obs_list['robot0_joint_pos_cos'][agent_id:agent_id+1],
-                               self.obs_list['robot0_joint_pos_sin'][agent_id:agent_id+1],
-                               self.obs_list['robot0_joint_vel'][agent_id:agent_id+1],
-                               self.obs_list['robot0_eef_pos'],
-                               self.obs_list['robot0_eef_quat'],
-                               self.obs_list['object-state']])
+        if self.args.has_gripper and agent_id == self.n_agents - 1:
+            obs = np.concatenate([self.obs_list['robot0_eef_pos'],
+                                  self.obs_list['robot0_eef_quat'],
+                                  self.obs_list['object-state'],
+                                  np.zeros(3),
+                                  self.obs_list['robot0_gripper_qpos'],
+                                  self.obs_list['robot0_gripper_qvel'],
+                                  np.ones(1),
+                                  ])
+        else:
+            obs = np.concatenate([self.obs_list['robot0_eef_pos'],
+                                  self.obs_list['robot0_eef_quat'],
+                                  self.obs_list['object-state'],
+                                  self.obs_list['robot0_joint_pos_cos'][agent_id:agent_id + 1],
+                                  self.obs_list['robot0_joint_pos_sin'][agent_id:agent_id + 1],
+                                  self.obs_list['robot0_joint_vel'][agent_id:agent_id + 1],
+                                  np.zeros(5),
+                                  ])
+        return obs
 
     def get_obs_size(self):
         return len(self.get_obs_agent(0))
 
     def get_state(self): # TODO: consider gripper,multi-object,multi-robot
-        return np.concatenate([self.obs_list['robot0_joint_pos_cos'],
-                               self.obs_list['robot0_joint_pos_sin'],
-                               self.obs_list['robot0_joint_vel'],
-                               self.obs_list['robot0_eef_pos'],
-                               self.obs_list['robot0_eef_quat'],
-                               self.obs_list['object-state']])
+        if self.args.has_gripper:
+            state = np.concatenate([self.obs_list['robot0_joint_pos_cos'],
+                                    self.obs_list['robot0_joint_pos_sin'],
+                                    self.obs_list['robot0_joint_vel'],
+                                    self.obs_list['robot0_eef_pos'],
+                                    self.obs_list['robot0_eef_quat'],
+                                    self.obs_list['object-state'],
+                                    self.obs_list['robot0_gripper_qpos'],
+                                    self.obs_list['robot0_gripper_qvel'],
+                                    ])
+        else:
+            state = np.concatenate([self.obs_list['robot0_joint_pos_cos'],
+                                    self.obs_list['robot0_joint_pos_sin'],
+                                    self.obs_list['robot0_joint_vel'],
+                                    self.obs_list['robot0_eef_pos'],
+                                    self.obs_list['robot0_eef_quat'],
+                                    self.obs_list['object-state']
+                                    ])
+        return state
 
         # np.concatenate(self.get_obs())
 
