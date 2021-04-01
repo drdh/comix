@@ -12,4 +12,5 @@ class MLPBase(nn.Module):
         x = F.relu(self.l1(inputs))
         x = F.relu(self.l2(x))
         x = self.l3(x)
+        x = F.normalize(x,dim=-1)
         return x
