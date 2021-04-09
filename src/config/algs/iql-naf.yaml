@@ -26,7 +26,7 @@ learn_interval: 1
 lr: 0.001
 mac: cqmix_mac
 mixer: None
-naf_hidden_dim: 400
+naf_hidden_dim: 64 #400
 name: "comix-naf"
 n_runners: ~
 n_train: 1
