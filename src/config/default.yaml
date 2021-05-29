@@ -39,6 +39,7 @@ recurrent_critic: False
 optim_alpha: 0.99 # RMSProp alpha
 optim_eps: 0.00001
 grad_norm_clip: 10 # Reduce magnitude of gradients above this L2 norm
+weight_decay: 0.0
 
 # --- Agent parameters ---
 agent: "rnn" # Default rnn agent

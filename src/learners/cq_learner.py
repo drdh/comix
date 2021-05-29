@@ -36,11 +36,13 @@ class CQLearner:
             self.optimiser = RMSprop(params=self.params,
                                      lr=args.lr,
                                      alpha=args.optim_alpha,
-                                     eps=args.optim_eps)
+                                     eps=args.optim_eps,
+                                     weight_decay=args.weight_decay)
         elif getattr(self.args, "optimizer", "rmsprop") == "adam":
             self.optimiser = Adam(params=self.params,
                                   lr=args.lr,
-                                  eps=getattr(args, "optimizer_epsilon", 10E-8))
+                                  eps=getattr(args, "optimizer_epsilon", 10E-8),
+                                  weight_decay=args.weight_decay)
         else:
             raise Exception("unknown optimizer {}".format(getattr(self.args, "optimizer", "rmsprop")))
 
@@ -85,7 +87,8 @@ class CQLearner:
 
         # Normal L2 loss, take mean over actual data
         assert self.args.runner_scope == "transition", "Runner scope HAS to be transition!"
-        loss = (td_error ** 2).mean()
+        # reg_loss = 1e-3 * th.sum(th.cat([th.sum(p**2).unsqueeze(0) for p in self.params]))
+        loss = (td_error ** 2).mean()# + reg_loss
 
         # Optimise
         self.optimiser.zero_grad()
@@ -104,6 +107,7 @@ class CQLearner:
 
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
             self.logger.log_stat("loss", loss.item(), t_env)
+            # self.logger.log_stat("reg_loss", reg_loss.item(), t_env)
             self.logger.log_stat("grad_norm", grad_norm, t_env)
             self.logger.log_stat("weight_norm", (th.sum(th.cat([th.sum(p**2).unsqueeze(0) for p in self.params]))**0.5).item(), t_env)
             self.logger.log_stat("q_taken_mean",
